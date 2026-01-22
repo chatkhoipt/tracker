@@ -1,210 +1,209 @@
+#!/usr/bin/env python3
+"""
+cf_multi_stats.py
+
+Usage:
+    python cf_multi_stats.py --handles user1 user2
+    python cf_multi_stats.py --file handles.txt --csv summary.csv
+
+Requirements:
+    pip install requests
+"""
 from __future__ import annotations
 
-import os
-import json
-import sys
-import time
-from datetime import datetime, timezone
-from typing import Dict, Tuple, Optional, List
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
+import argparse
 import requests
-from requests import Session
-
-# =======================
-# PUBLIC CONSTANTS
-# =======================
+from datetime import datetime, timezone
+from typing import Dict, Tuple, List, Optional
+import csv
+import sys
 
 START_DATE = datetime(2025, 11, 1, tzinfo=timezone.utc)
 START_TS = int(START_DATE.timestamp())
 
 API_URL = "https://codeforces.com/api/user.status"
-
-# =======================
-# PERFORMANCE CONFIG
-# =======================
-
 PAGE_SIZE = 1000
-MAX_WORKERS = 6              # tune: 4–8 safe; CF rate limit tolerant
-CACHE_DIR = "cache"
-CACHE_VERSION = 1            # bump if cache format changes
-
-os.makedirs(CACHE_DIR, exist_ok=True)
-
-# =======================
-# CACHE UTILITIES
-# =======================
-
-def _cache_path(handle: str) -> str:
-    safe = handle.replace("/", "_")
-    return os.path.join(CACHE_DIR, f"{safe}.json")
 
 
-def load_handle_cache(handle: str) -> dict:
-    path = _cache_path(handle)
-    if not os.path.exists(path):
-        return {"v": CACHE_VERSION, "last_ts": 0, "solved": {}}
-
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            if data.get("v") != CACHE_VERSION:
-                return {"v": CACHE_VERSION, "last_ts": 0, "solved": {}}
-            return data
-    except Exception:
-        return {"v": CACHE_VERSION, "last_ts": 0, "solved": {}}
-
-
-def save_handle_cache(handle: str, data: dict) -> None:
-    path = _cache_path(handle)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f)
-    os.replace(tmp, path)
-
-# =======================
-# FETCHING (FAST PATH)
-# =======================
-
-def fetch_new_submissions(
-    handle: str,
-    session: Session,
-    stop_ts: int
-) -> Tuple[List[dict], int]:
-    """
-    Fetch submissions newer than stop_ts.
-    Stops immediately once older submissions are seen.
-    """
-    out: List[dict] = []
-    newest_ts = stop_ts
+def fetch_all_submissions(handle: str, page_size: int = PAGE_SIZE) -> List[dict]:
+    submissions: List[dict] = []
     start_index = 1
 
     while True:
-        resp = session.get(
+        resp = requests.get(
             API_URL,
-            params={
-                "handle": handle,
-                "from": start_index,
-                "count": PAGE_SIZE
-            },
-            timeout=20
+            params={"handle": handle, "from": start_index, "count": page_size},
+            timeout=30
         )
         resp.raise_for_status()
-        payload = resp.json()
+        data = resp.json()
 
-        if payload.get("status") != "OK":
-            break
+        if data.get("status") != "OK":
+            raise RuntimeError(f"API error for handle {handle}")
 
-        batch = payload.get("result", [])
+        batch = data.get("result", [])
         if not batch:
             break
 
-        stop = False
-        for sub in batch:
-            cts = sub.get("creationTimeSeconds", 0)
-            if cts <= stop_ts:
-                stop = True
-                break
-            out.append(sub)
-            if cts > newest_ts:
-                newest_ts = cts
-
-        if stop or len(batch) < PAGE_SIZE:
+        submissions.extend(batch)
+        if len(batch) < page_size:
             break
 
         start_index += len(batch)
 
-    return out, newest_ts
+    return submissions
 
-# =======================
-# PER-HANDLE PROCESSING
-# =======================
 
-def process_handle(handle: str) -> Tuple[str, Optional[dict]]:
+def summarize_handles(handles: List[str]) -> Tuple[
+    dict,
+    Dict[Tuple[Optional[int], Optional[str]], Optional[int]]
+]:
     """
-    Fetch + update cache + compute summary for one handle.
+    Returns:
+      - per-account results
+      - global_solved: deduplicated across all accounts
     """
-    try:
-        session = requests.Session()
-        cache = load_handle_cache(handle)
-        last_ts = cache["last_ts"]
-        solved = cache["solved"]  # "contestId:index" -> rating or None
+    results = {}
+    global_solved: Dict[Tuple[Optional[int], Optional[str]], Optional[int]] = {}
 
-        new_subs, newest_seen = fetch_new_submissions(handle, session, last_ts)
+    for h in handles:
+        try:
+            subs = fetch_all_submissions(h)
+        except Exception as e:
+            print(f"[ERROR] Failed fetching {h}: {e}", file=sys.stderr)
+            results[h] = None
+            continue
 
-        for sub in new_subs:
+        solved_local: Dict[Tuple[Optional[int], Optional[str]], Optional[int]] = {}
+
+        for sub in subs:
             if sub.get("verdict") != "OK":
                 continue
             if sub.get("creationTimeSeconds", 0) < START_TS:
                 continue
 
             prob = sub.get("problem", {})
-            cid = prob.get("contestId")
-            idx = prob.get("index")
-            if cid is None or idx is None:
-                continue
-
-            key = f"{cid}:{idx}"
+            key = (prob.get("contestId"), prob.get("index"))
             rating = prob.get("rating")
 
-            if key not in solved or (solved[key] is None and rating is not None):
-                solved[key] = rating
+            if key not in solved_local:
+                solved_local[key] = rating
+                global_solved.setdefault(key, rating)
 
-        if newest_seen > last_ts:
-            cache["last_ts"] = newest_seen
+        rated = [r for r in solved_local.values() if r is not None]
 
-        cache["solved"] = solved
-        save_handle_cache(handle, cache)
-
-        rated = [r for r in solved.values() if r is not None]
-        return handle, {
-            "problems": len(solved),
+        results[h] = {
+            "problems": len(solved_local),
             "rated_problems": len(rated),
-            "avg_rating": (sum(rated) / len(rated)) if rated else 0.0,
+            "avg_rating": sum(rated) / len(rated) if rated else 0.0,
         }
 
-    except Exception as e:
-        print(f"[ERROR] {handle}: {e}", file=sys.stderr)
-        return handle, None
+    return results, global_solved
 
-# =======================
-# PUBLIC API
-# =======================
 
-def summarize_handles(
-    handles: List[str],
-) -> Tuple[
-    dict,
-    Dict[Tuple[Optional[int], Optional[str]], Optional[int]]
-]:
-    """
-    Parallel, cached, incremental summarization.
-    """
-    results: dict = {}
-    global_solved: Dict[str, Optional[int]] = {}
+def print_report(results: dict,
+                 global_solved: Dict[Tuple[Optional[int], Optional[str]], Optional[int]],
+                 start_date: datetime = START_DATE) -> None:
 
-    workers = min(MAX_WORKERS, max(1, len(handles)))
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(process_handle, h) for h in handles]
+    handles = list(results.keys())
+    print(f"Codeforces statistics from {start_date.date()} (inclusive)\n")
 
-        for fut in as_completed(futures):
-            handle, res = fut.result()
-            results[handle] = res
+    max_handle_len = max((len(h) for h in handles), default=6)
+    header = f"{'handle'.ljust(max_handle_len)} | problems | rated_count | avg_rating"
+    print(header)
+    print("-" * len(header))
 
-            if res is None:
-                continue
+    for h, v in results.items():
+        if v is None:
+            print(f"{h.ljust(max_handle_len)} | ERROR fetching data")
+            continue
 
-            cache = load_handle_cache(handle)
-            for k, rating in cache["solved"].items():
-                if k not in global_solved or (
-                    global_solved[k] is None and rating is not None
-                ):
-                    global_solved[k] = rating
+        print(
+            f"{h.ljust(max_handle_len)} | "
+            f"{v['problems']:8d} | "
+            f"{v['rated_problems']:11d} | "
+            f"{v['avg_rating']:10.2f}"
+        )
 
-    # convert "cid:index" → (cid, index) for compatibility
-    parsed_global = {}
-    for k, r in global_solved.items():
-        cid, idx = k.split(":")
-        parsed_global[(int(cid), idx)] = r
+    # ---- GLOBAL (DEDUPLICATED) ----
+    global_rated = [r for r in global_solved.values() if r is not None]
 
-    return results, parsed_global
+    print("\nAGGREGATED (deduplicated across accounts):")
+    print(f"  Total unique problems solved: {len(global_solved)}")
+    print(f"  Total unique rated problems: {len(global_rated)}")
+    print(
+        f"  Average problem rating: "
+        f"{(sum(global_rated) / len(global_rated)) if global_rated else 0.0:.2f}"
+    )
+
+
+def write_csv(results: dict,
+              global_solved: Dict[Tuple[Optional[int], Optional[str]], Optional[int]],
+              out_path: str,
+              start_date: datetime = START_DATE) -> None:
+
+    with open(out_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["from_date", start_date.isoformat()])
+        writer.writerow(["handle", "problems", "rated_problems", "avg_rating"])
+
+        for h, v in results.items():
+            if v is None:
+                writer.writerow([h, "ERROR", "", ""])
+            else:
+                writer.writerow([
+                    h,
+                    v["problems"],
+                    v["rated_problems"],
+                    f"{v['avg_rating']:.2f}"
+                ])
+
+        writer.writerow([])
+        writer.writerow(["AGGREGATED"])
+        writer.writerow(["unique_problems", len(global_solved)])
+        writer.writerow([
+            "average_rating",
+            f"{(sum(r for r in global_solved.values() if r is not None) / max(1, len([r for r in global_solved.values() if r is not None]))):.2f}"
+        ])
+
+
+def parse_args():
+    p = argparse.ArgumentParser(
+        description="Compute Codeforces solved problem statistics from Nov 2025 onward"
+    )
+    group = p.add_mutually_exclusive_group(required=True)
+    group.add_argument("--handles", nargs="+", help="Codeforces handles")
+    group.add_argument("--file", help="File with one handle per line")
+    p.add_argument("--csv", help="Write CSV output (optional)")
+    return p.parse_args()
+
+
+def main():
+    args = parse_args()
+
+    if args.handles:
+        handles = args.handles
+    else:
+        try:
+            with open(args.file, "r", encoding="utf-8") as fh:
+                handles = [ln.strip() for ln in fh if ln.strip()]
+        except Exception as e:
+            print(f"Failed to read handles file: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    print(f"Fetching statistics for {len(handles)} handle(s)...")
+    results, global_solved = summarize_handles(handles)
+
+    print()
+    print_report(results, global_solved)
+
+    if args.csv:
+        try:
+            write_csv(results, global_solved, args.csv)
+            print(f"\nCSV written to: {args.csv}")
+        except Exception as e:
+            print(f"Failed to write CSV: {e}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()
