@@ -1,39 +1,44 @@
 #!/usr/bin/env python3
 """
 cf_multi_stats.py
-
-Usage:
-    python cf_multi_stats.py --handles user1 user2
-    python cf_multi_stats.py --file handles.txt --csv summary.csv
-
-Requirements:
-    pip install requests
+Optimized for serverless (Vercel)
 """
+
 from __future__ import annotations
 
-import argparse
 import requests
 from datetime import datetime, timezone
 from typing import Dict, Tuple, List, Optional
-import csv
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 START_DATE = datetime(2025, 11, 1, tzinfo=timezone.utc)
 START_TS = int(START_DATE.timestamp())
 
 API_URL = "https://codeforces.com/api/user.status"
 PAGE_SIZE = 1000
+MAX_WORKERS = 5   # safe for CF + Vercel
+
+# ---------- SHARED SESSION ----------
+_SESSION = requests.Session()
+_SESSION.headers.update({
+    "User-Agent": "cf-stats-vercel/1.0"
+})
 
 
-def fetch_all_submissions(handle: str, page_size: int = PAGE_SIZE) -> List[dict]:
+def fetch_all_submissions(handle: str) -> List[dict]:
     submissions: List[dict] = []
     start_index = 1
 
     while True:
-        resp = requests.get(
+        resp = _SESSION.get(
             API_URL,
-            params={"handle": handle, "from": start_index, "count": page_size},
-            timeout=30
+            params={
+                "handle": handle,
+                "from": start_index,
+                "count": PAGE_SIZE
+            },
+            timeout=20
         )
         resp.raise_for_status()
         data = resp.json()
@@ -45,8 +50,13 @@ def fetch_all_submissions(handle: str, page_size: int = PAGE_SIZE) -> List[dict]
         if not batch:
             break
 
-        submissions.extend(batch)
-        if len(batch) < page_size:
+        for sub in batch:
+            ts = sub.get("creationTimeSeconds", 0)
+            if ts < START_TS:
+                return submissions  # EARLY EXIT
+            submissions.append(sub)
+
+        if len(batch) < PAGE_SIZE:
             break
 
         start_index += len(batch)
@@ -54,55 +64,83 @@ def fetch_all_submissions(handle: str, page_size: int = PAGE_SIZE) -> List[dict]
     return submissions
 
 
-def summarize_handles(handles: List[str]) -> Tuple[
-    dict,
-    Dict[Tuple[Optional[int], Optional[str]], Optional[int]]
-]:
-    """
-    Returns:
-      - per-account results
-      - global_solved: deduplicated across all accounts
-    """
-    results = {}
-    global_solved: Dict[Tuple[Optional[int], Optional[str]], Optional[int]] = {}
+def _process_handle(handle: str):
+    try:
+        subs = fetch_all_submissions(handle)
+    except Exception as e:
+        return handle, None, str(e)
 
-    for h in handles:
-        try:
-            subs = fetch_all_submissions(h)
-        except Exception as e:
-            print(f"[ERROR] Failed fetching {h}: {e}", file=sys.stderr)
-            results[h] = None
+    solved_local: Dict[
+        Tuple[Optional[int], Optional[str]],
+        Optional[int]
+    ] = {}
+
+    global_local: Dict[
+        Tuple[Optional[int], Optional[str]],
+        Dict[str, object]
+    ] = {}
+
+    for sub in subs:
+        if sub.get("verdict") != "OK":
             continue
 
-        solved_local: Dict[Tuple[Optional[int], Optional[str]], Optional[int]] = {}
+        prob = sub.get("problem", {})
+        key = (prob.get("contestId"), prob.get("index"))
 
-        for sub in subs:
-            if sub.get("verdict") != "OK":
-                continue
-            if sub.get("creationTimeSeconds", 0) < START_TS:
-                continue
+        if key in solved_local:
+            continue
 
-            prob = sub.get("problem", {})
-            key = (prob.get("contestId"), prob.get("index"))
-            rating = prob.get("rating")
+        rating = prob.get("rating")
+        tags = prob.get("tags", [])
 
-            if key not in solved_local:
-                solved_local[key] = rating
-                global_solved.setdefault(key, rating)
-
-        rated = [r for r in solved_local.values() if r is not None]
-
-        results[h] = {
-            "problems": len(solved_local),
-            "rated_problems": len(rated),
-            "avg_rating": sum(rated) / len(rated) if rated else 0.0,
+        solved_local[key] = rating
+        global_local[key] = {
+            "rating": rating,
+            "tags": tags,
         }
+
+    rated = [r for r in solved_local.values() if r is not None]
+
+    result = {
+        "problems": len(solved_local),
+        "rated_problems": len(rated),
+        "avg_rating": sum(rated) / len(rated) if rated else 0.0,
+    }
+
+    return handle, result, global_local
+
+
+def summarize_handles(handles: List[str]):
+    results = {}
+    global_solved: Dict[
+        Tuple[Optional[int], Optional[str]],
+        Dict[str, object]
+    ] = {}
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+        futures = [
+            pool.submit(_process_handle, h)
+            for h in handles
+        ]
+
+        for f in as_completed(futures):
+            h, res, data = f.result()
+
+            if res is None:
+                print(f"[ERROR] Failed fetching {h}: {data}", file=sys.stderr)
+                results[h] = None
+                continue
+
+            results[h] = res
+
+            for k, v in data.items():
+                global_solved.setdefault(k, v)
 
     return results, global_solved
 
 
 def print_report(results: dict,
-                 global_solved: Dict[Tuple[Optional[int], Optional[str]], Optional[int]],
+                 global_solved: Dict[Tuple[Optional[int], Optional[str]], dict],
                  start_date: datetime = START_DATE) -> None:
 
     handles = list(results.keys())
@@ -125,8 +163,11 @@ def print_report(results: dict,
             f"{v['avg_rating']:10.2f}"
         )
 
-    # ---- GLOBAL (DEDUPLICATED) ----
-    global_rated = [r for r in global_solved.values() if r is not None]
+    global_rated = [
+        v["rating"]
+        for v in global_solved.values()
+        if v["rating"] is not None
+    ]
 
     print("\nAGGREGATED (deduplicated across accounts):")
     print(f"  Total unique problems solved: {len(global_solved)}")
@@ -137,73 +178,22 @@ def print_report(results: dict,
     )
 
 
-def write_csv(results: dict,
-              global_solved: Dict[Tuple[Optional[int], Optional[str]], Optional[int]],
-              out_path: str,
-              start_date: datetime = START_DATE) -> None:
+if __name__ == "__main__":
+    import argparse
 
-    with open(out_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["from_date", start_date.isoformat()])
-        writer.writerow(["handle", "problems", "rated_problems", "avg_rating"])
-
-        for h, v in results.items():
-            if v is None:
-                writer.writerow([h, "ERROR", "", ""])
-            else:
-                writer.writerow([
-                    h,
-                    v["problems"],
-                    v["rated_problems"],
-                    f"{v['avg_rating']:.2f}"
-                ])
-
-        writer.writerow([])
-        writer.writerow(["AGGREGATED"])
-        writer.writerow(["unique_problems", len(global_solved)])
-        writer.writerow([
-            "average_rating",
-            f"{(sum(r for r in global_solved.values() if r is not None) / max(1, len([r for r in global_solved.values() if r is not None]))):.2f}"
-        ])
-
-
-def parse_args():
     p = argparse.ArgumentParser(
         description="Compute Codeforces solved problem statistics from Nov 2025 onward"
     )
     group = p.add_mutually_exclusive_group(required=True)
-    group.add_argument("--handles", nargs="+", help="Codeforces handles")
-    group.add_argument("--file", help="File with one handle per line")
-    p.add_argument("--csv", help="Write CSV output (optional)")
-    return p.parse_args()
-
-
-def main():
-    args = parse_args()
+    group.add_argument("--handles", nargs="+")
+    group.add_argument("--file")
+    args = p.parse_args()
 
     if args.handles:
         handles = args.handles
     else:
-        try:
-            with open(args.file, "r", encoding="utf-8") as fh:
-                handles = [ln.strip() for ln in fh if ln.strip()]
-        except Exception as e:
-            print(f"Failed to read handles file: {e}", file=sys.stderr)
-            sys.exit(1)
+        with open(args.file, "r", encoding="utf-8") as fh:
+            handles = [ln.strip() for ln in fh if ln.strip()]
 
-    print(f"Fetching statistics for {len(handles)} handle(s)...")
     results, global_solved = summarize_handles(handles)
-
-    print()
     print_report(results, global_solved)
-
-    if args.csv:
-        try:
-            write_csv(results, global_solved, args.csv)
-            print(f"\nCSV written to: {args.csv}")
-        except Exception as e:
-            print(f"Failed to write CSV: {e}", file=sys.stderr)
-
-
-if __name__ == "__main__":
-    main()
