@@ -8,6 +8,8 @@ def index():
     results = None
     aggregated = None
     error = None
+    rating_hist = None
+    tag_hist = None
 
     if request.method == "POST":
         raw = request.form.get("handles", "")
@@ -19,13 +21,27 @@ def index():
             try:
                 results, global_solved = summarize_handles(handles)
 
-                rated = [r for r in global_solved.values() if r is not None]
+                # Build histograms
+                rating_hist = {}
+                tag_hist = {}
+
+                for v in global_solved.values():
+                    rating = v.get("rating")
+                    tags = v.get("tags", []) or []
+
+                    if rating is not None:
+                        rating_hist[rating] = rating_hist.get(rating, 0) + 1
+
+                    for t in tags:
+                        tag_hist[t] = tag_hist.get(t, 0) + 1
+
+                rated = [v.get("rating") for v in global_solved.values() if v.get("rating") is not None]
+
                 aggregated = {
                     "unique_problems": len(global_solved),
-                    "avg_rating": (
-                        sum(rated) / len(rated) if rated else 0.0
-                    )
+                    "avg_rating": sum(rated) / len(rated) if rated else 0.0
                 }
+
             except Exception as e:
                 error = str(e)
 
@@ -33,6 +49,8 @@ def index():
         "index.html",
         results=results,
         aggregated=aggregated,
+        rating_hist=rating_hist,
+        tag_hist=tag_hist,
         start_date=START_DATE.date(),
         error=error
     )
