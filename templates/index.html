@@ -25,9 +25,7 @@
     --accent: #2f81f7;
 }
 
-* {
-    box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
     margin: 0;
@@ -50,9 +48,7 @@ body {
     margin-bottom: 10px;
 }
 
-h1 {
-    margin: 0 0 4px 0;
-}
+h1 { margin: 0 0 4px 0; }
 
 .subtitle {
     color: var(--muted);
@@ -67,9 +63,7 @@ h1 {
     margin-bottom: 25px;
 }
 
-label {
-    font-weight: 600;
-}
+label { font-weight: 600; }
 
 input[type="text"] {
     padding: 8px;
@@ -146,9 +140,7 @@ th, td {
     padding: 8px 10px;
 }
 
-th {
-    background: var(--bg);
-}
+th { background: var(--bg); }
 
 .stats {
     display: flex;
@@ -181,6 +173,9 @@ th {
     display: none;
 }
 </style>
+
+<!-- ✅ Chart.js added -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 </head>
 
 <body>
@@ -197,34 +192,27 @@ th {
 </div>
 
 <div class="card">
-    <form method="post" onsubmit="return onSubmit()">
-        <label>Add Codeforces handle</label><br><br>
+<form method="post" onsubmit="return onSubmit()">
+    <label>Add Codeforces handle</label><br><br>
 
-        <input
-            type="text"
-            id="handleInput"
-            placeholder="tourist"
-            onkeydown="handleKeyDown(event)"
-        >
+    <input type="text" id="handleInput" placeholder="tourist"
+           onkeydown="handleKeyDown(event)">
 
-        <button type="button" class="secondary" onclick="addHandle()">
-            Add
-        </button>
+    <button type="button" class="secondary" onclick="addHandle()">Add</button>
 
-        <div class="handles" id="handlesContainer"></div>
+    <div class="handles" id="handlesContainer"></div>
+    <input type="hidden" name="handles" id="handlesField">
 
-        <input type="hidden" name="handles" id="handlesField">
+    <br>
+    <button type="submit" id="submitBtn" class="primary">
+        Fetch statistics
+    </button>
+    <span class="spinner" id="spinner">Fetching…</span>
 
-        <br>
-        <button type="submit" id="submitBtn" class="primary">
-            Fetch statistics
-        </button>
-        <span class="spinner" id="spinner">Fetching…</span>
-
-        {% if error %}
-            <div class="error">{{ error }}</div>
-        {% endif %}
-    </form>
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+</form>
 </div>
 
 {% if aggregated %}
@@ -253,21 +241,32 @@ th {
     <th>Avg rating</th>
 </tr>
 {% for h, v in results.items() %}
+<tr>
+    <td>{{ h }}</td>
     {% if v %}
-    <tr>
-        <td>{{ h }}</td>
         <td>{{ v.problems }}</td>
         <td>{{ v.rated_problems }}</td>
         <td>{{ "%.2f"|format(v.avg_rating) }}</td>
-    </tr>
     {% else %}
-    <tr>
-        <td>{{ h }}</td>
         <td colspan="3">ERROR</td>
-    </tr>
     {% endif %}
+</tr>
 {% endfor %}
 </table>
+</div>
+{% endif %}
+
+{% if rating_hist %}
+<div class="card">
+<h3>Problem difficulty distribution</h3>
+<canvas id="ratingChart"></canvas>
+</div>
+{% endif %}
+
+{% if tag_hist %}
+<div class="card">
+<h3>Problem tags distribution</h3>
+<canvas id="tagChart"></canvas>
 </div>
 {% endif %}
 
@@ -275,6 +274,10 @@ th {
 
 <script>
 let handles = JSON.parse(localStorage.getItem("handles") || "[]");
+let ratingChart = null;
+let tagChart = null;
+
+/* ---------- EXISTING LOGIC ---------- */
 
 function saveHandles() {
     localStorage.setItem("handles", JSON.stringify(handles));
@@ -323,7 +326,7 @@ function onSubmit() {
     return true;
 }
 
-/* -------- THEME LOGIC -------- */
+/* ---------- THEME ---------- */
 
 function toggleTheme() {
     const current = document.documentElement.getAttribute("data-theme") || "light";
@@ -334,9 +337,68 @@ function toggleTheme() {
 
 (function init() {
     renderHandles();
-    const savedTheme = localStorage.getItem("theme") || "light";
-    document.documentElement.setAttribute("data-theme", savedTheme);
+    document.documentElement.setAttribute(
+        "data-theme",
+        localStorage.getItem("theme") || "light"
+    );
 })();
+
+/* ---------- CHARTS (NEW, SAFE) ---------- */
+
+window.addEventListener("load", function () {
+
+{% if rating_hist %}
+(function () {
+    const map = {{ rating_hist | tojson }};
+    const labels = Object.keys(map).map(Number).sort((a,b)=>a-b);
+    const data = labels.map(x => map[x]);
+
+    const ctx = document.getElementById("ratingChart");
+    if (!ctx) return;
+
+    if (ratingChart) ratingChart.destroy();
+
+    ratingChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: labels.map(String),
+            datasets: [{ label: "Problems", data }]
+        },
+        options: { responsive: true }
+    });
+})();
+{% endif %}
+
+{% if tag_hist %}
+(function () {
+    const map = {{ tag_hist | tojson }};
+    const entries = Object.entries(map)
+        .sort((a,b)=>b[1]-a[1])
+        .slice(0,20);
+
+    const labels = entries.map(e => e[0]);
+    const data = entries.map(e => e[1]);
+
+    const ctx = document.getElementById("tagChart");
+    if (!ctx) return;
+
+    if (tagChart) tagChart.destroy();
+
+    tagChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{ label: "Problems", data }]
+        },
+        options: {
+            indexAxis: "y",
+            responsive: true
+        }
+    });
+})();
+{% endif %}
+
+});
 </script>
 
 </body>
