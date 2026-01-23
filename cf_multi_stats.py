@@ -1,32 +1,22 @@
-#!/usr/bin/env python3
-"""
-cf_multi_stats.py
-Optimized for serverless (Vercel)
-"""
-
 from __future__ import annotations
 
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Tuple, List, Optional
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-START_DATE = datetime(2025, 11, 1, tzinfo=timezone.utc)
-START_TS = int(START_DATE.timestamp())
-
 API_URL = "https://codeforces.com/api/user.status"
 PAGE_SIZE = 1000
-MAX_WORKERS = 5   # safe for CF + Vercel
+MAX_WORKERS = 5
 
-# ---------- SHARED SESSION ----------
 _SESSION = requests.Session()
 _SESSION.headers.update({
     "User-Agent": "cf-stats-vercel/1.0"
 })
 
 
-def fetch_all_submissions(handle: str) -> List[dict]:
+def fetch_all_submissions(handle: str, start_ts: int, end_ts: int) -> List[dict]:
     submissions: List[dict] = []
     start_index = 1
 
@@ -52,8 +42,13 @@ def fetch_all_submissions(handle: str) -> List[dict]:
 
         for sub in batch:
             ts = sub.get("creationTimeSeconds", 0)
-            if ts < START_TS:
-                return submissions  # EARLY EXIT
+
+            if ts < start_ts:
+                return submissions  # EARLY EXIT (older than range)
+
+            if ts >= end_ts:
+                continue  # too new
+
             submissions.append(sub)
 
         if len(batch) < PAGE_SIZE:
@@ -64,9 +59,9 @@ def fetch_all_submissions(handle: str) -> List[dict]:
     return submissions
 
 
-def _process_handle(handle: str):
+def _process_handle(handle: str, start_ts: int, end_ts: int):
     try:
-        subs = fetch_all_submissions(handle)
+        subs = fetch_all_submissions(handle, start_ts, end_ts)
     except Exception as e:
         return handle, None, str(e)
 
@@ -110,7 +105,21 @@ def _process_handle(handle: str):
     return handle, result, global_local
 
 
-def summarize_handles(handles: List[str]):
+def summarize_handles(
+    handles: List[str],
+    start_date: datetime,
+    end_date: datetime
+):
+    # start of start_date
+    start_ts = int(start_date.replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ).timestamp())
+
+    # start of NEXT day (exclusive upper bound)
+    end_ts = int((end_date + timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ).timestamp())
+
     results = {}
     global_solved: Dict[
         Tuple[Optional[int], Optional[str]],
@@ -119,7 +128,7 @@ def summarize_handles(handles: List[str]):
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
         futures = [
-            pool.submit(_process_handle, h)
+            pool.submit(_process_handle, h, start_ts, end_ts)
             for h in handles
         ]
 
@@ -132,68 +141,7 @@ def summarize_handles(handles: List[str]):
                 continue
 
             results[h] = res
-
             for k, v in data.items():
                 global_solved.setdefault(k, v)
 
     return results, global_solved
-
-
-def print_report(results: dict,
-                 global_solved: Dict[Tuple[Optional[int], Optional[str]], dict],
-                 start_date: datetime = START_DATE) -> None:
-
-    handles = list(results.keys())
-    print(f"Codeforces statistics from {start_date.date()} (inclusive)\n")
-
-    max_handle_len = max((len(h) for h in handles), default=6)
-    header = f"{'handle'.ljust(max_handle_len)} | problems | rated_count | avg_rating"
-    print(header)
-    print("-" * len(header))
-
-    for h, v in results.items():
-        if v is None:
-            print(f"{h.ljust(max_handle_len)} | ERROR fetching data")
-            continue
-
-        print(
-            f"{h.ljust(max_handle_len)} | "
-            f"{v['problems']:8d} | "
-            f"{v['rated_problems']:11d} | "
-            f"{v['avg_rating']:10.2f}"
-        )
-
-    global_rated = [
-        v["rating"]
-        for v in global_solved.values()
-        if v["rating"] is not None
-    ]
-
-    print("\nAGGREGATED (deduplicated across accounts):")
-    print(f"  Total unique problems solved: {len(global_solved)}")
-    print(f"  Total unique rated problems: {len(global_rated)}")
-    print(
-        f"  Average problem rating: "
-        f"{(sum(global_rated) / len(global_rated)) if global_rated else 0.0:.2f}"
-    )
-
-
-if __name__ == "__main__":
-    import argparse
-
-    p = argparse.ArgumentParser(
-        description="Compute Codeforces solved problem statistics from Nov 2025 onward"
-    )
-    group = p.add_mutually_exclusive_group(required=True)
-    group.add_argument("--handles", nargs="+")
-    group.add_argument("--file")
-    args = p.parse_args()
-
-    if args.handles:
-        handles = args.handles
-    else:
-        with open(args.file, "r", encoding="utf-8") as fh:
-            handles = [ln.strip() for ln in fh if ln.strip()]
-
-    results, global_solved = summarize_handles(handles)
-    print_report(results, global_solved)
