@@ -113,7 +113,7 @@
                         </tr>
                         {% endfor %}
                         <tr style="font-weight:900; color:var(--accent);">
-                            <td>Total</td>
+                            <td>Total Unique</td>
                             <td id="total-solved-{{ p_idx }}">{{ person.total_unique }}</td>
                             <td id="total-avg-{{ p_idx }}">{{ "%.1f"|format(person.avg_rating) }}</td>
                         </tr>
@@ -167,12 +167,10 @@ const chartInstances = {};
 
 // Handle Persistence (Reloading Page)
 {% if people_results %}
-    // If Flask rendered new results, update cache immediately
     const serverResults = {{ people_results | tojson }};
     localStorage.setItem('cf_last_run_results', JSON.stringify(serverResults));
     serverResults.forEach((p, i) => personSolvedSets[i] = p.raw_problems);
 {% else %}
-    // If no Flask results, try loading from LocalStorage
     window.addEventListener('load', () => {
         const cached = JSON.parse(localStorage.getItem('cf_last_run_results'));
         if(cached) restoreFromCache(cached);
@@ -233,26 +231,51 @@ function updateCache() {
 // User Actions
 function addPerson() {
     const input = document.getElementById('newPersonName');
-    if (input.value.trim()) { people.push({ name: input.value.trim(), handles: [] }); input.value = ""; render(); }
+    if (input.value.trim()) { 
+        people.push({ name: input.value.trim(), handles: [] }); 
+        input.value = ""; 
+        render(); 
+        document.getElementById('newPersonName').focus(); // Keep focus on person box
+    }
 }
+
 async function addHandle(idx) {
     const input = document.getElementById(`inp-${idx}`);
     const h = input.value.trim();
     if (!h || people[idx].handles.includes(h)) return;
+    
     try {
         const resp = await fetch(`/api/check_handle/${h}`);
-        if ((await resp.json()).exists) { people[idx].handles.push(h); render(); } else { alert("User not found."); }
-    } catch (e) { alert("Error checking handle."); }
+        if ((await resp.json()).exists) { 
+            people[idx].handles.push(h); 
+            render(); 
+            // FIX: Refocus the handle input box immediately after render
+            const nextInput = document.getElementById(`inp-${idx}`);
+            if (nextInput) nextInput.focus();
+        } else { 
+            alert("User not found."); 
+            input.focus();
+        }
+    } catch (e) { 
+        alert("Error checking handle."); 
+        input.focus();
+    }
 }
+
 function render() {
     document.getElementById('peopleList').innerHTML = people.map((p, i) => `
         <div class="person-input-box">
             <div style="display:flex; justify-content:space-between; margin-bottom:12px;"><strong>${p.name}</strong><button type="button" style="color:var(--error); border:none; background:none; padding:0; font-size:11px;" onclick="removePerson(${i})">DELETE</button></div>
-            <div style="display:flex; gap:10px;"><input type="text" id="inp-${i}" placeholder="Add CF handle..." style="flex:1;"><button type="button" class="glass" onclick="addHandle(${i})">Add</button></div>
+            <div style="display:flex; gap:10px;">
+                <input type="text" id="inp-${i}" placeholder="Add CF handle..." style="flex:1;" 
+                       onkeydown="if(event.key==='Enter'){event.preventDefault(); addHandle(${i});}">
+                <button type="button" class="glass" onclick="addHandle(${i})">Add</button>
+            </div>
             <div style="margin-top:10px;">${p.handles.map((h, hi) => `<div class="chip">${h}<span style="cursor:pointer; margin-left:8px;" onclick="removeHandle(${i}, ${hi})">&times;</span></div>`).join('')}</div>
         </div>`).join('');
     localStorage.setItem('cf_stats_v2_data', JSON.stringify(people));
 }
+
 function removeHandle(pIdx, hIdx) { people[pIdx].handles.splice(hIdx, 1); render(); }
 function removePerson(idx) { if (confirm(`Remove ${people[idx].name}?`)) { people.splice(idx, 1); render(); } }
 
@@ -271,42 +294,29 @@ async function retryHandle(pIdx, handle, btn) {
         const data = await resp.json();
         if(data.success) {
             updateUI(pIdx, handle, data.stats, data.problems);
-            updateCache(); // Save state
+            updateCache();
         } else { alert("Failed."); btn.disabled = false; btn.textContent = "Retry"; }
     } catch(e) { btn.disabled = false; btn.textContent = "Retry"; }
 }
 
 function updateUI(pIdx, handle, stats, newProbs) {
     const table = document.getElementById(`table-${pIdx}`);
-    // Update individual row
     const row = [...table.querySelectorAll('tbody tr')].find(r => r.dataset.handle === handle);
     if(row) {
         row.innerHTML = `<td style="font-weight:700;"><a href="https://codeforces.com/profile/${handle}" target="_blank" style="color:var(--accent); text-decoration:none;">${handle}</a></td><td class="s-val">${stats.problems}</td><td class="r-val">${stats.avg_rating.toFixed(1)}</td>`;
     }
-
-    // Merge & Recalculate
     personSolvedSets[pIdx] = { ...personSolvedSets[pIdx], ...newProbs };
     const all = Object.values(personSolvedSets[pIdx]);
     const rated = all.map(p => p.rating).filter(r => r != null);
-    
-    // Update Totals
     document.getElementById(`total-solved-${pIdx}`).textContent = all.length;
     document.getElementById(`total-avg-${pIdx}`).textContent = rated.length ? (rated.reduce((a,b)=>a+b,0)/rated.length).toFixed(1) : "0.0";
-
     updateCharts(pIdx, all);
 }
 
 function initCharts(i) {
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
     const success = getComputedStyle(document.documentElement).getPropertyValue('--success').trim();
-    
-    // Config: Add 'Problems: ' prefix
-    const tooltipConfig = {
-        callbacks: {
-            label: (ctx) => 'Problems: ' + ctx.formattedValue
-        }
-    };
-
+    const tooltipConfig = { callbacks: { label: (ctx) => 'Problems: ' + ctx.formattedValue } };
     chartInstances[`r-${i}`] = new Chart(document.getElementById(`rating-${i}`), {
         type: 'bar',
         data: { labels: [], datasets: [{ data: [], backgroundColor: accent, borderRadius: 8 }] },
@@ -326,12 +336,10 @@ function updateCharts(idx, allProblems) {
         if(p.rating) rHist[p.rating] = (rHist[p.rating] || 0) + 1;
         p.tags?.forEach(t => tHist[t] = (tHist[t] || 0) + 1);
     });
-
     const rLabels = Object.keys(rHist).map(Number).sort((a,b)=>a-b);
     chartInstances[`r-${idx}`].data.labels = rLabels;
     chartInstances[`r-${idx}`].data.datasets[0].data = rLabels.map(l => rHist[l]);
     chartInstances[`r-${idx}`].update();
-
     const tSorted = Object.entries(tHist).sort((a,b)=>b[1]-a[1]).slice(0,10);
     chartInstances[`t-${idx}`].data.labels = tSorted.map(x=>x[0]);
     chartInstances[`t-${idx}`].data.datasets[0].data = tSorted.map(x=>x[1]);
