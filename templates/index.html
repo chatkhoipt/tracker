@@ -31,7 +31,7 @@
         --input-bg: #0f172a;
     }
 
-    * { box-sizing: border-box; transition: all 0.25s ease; }
+    * { box-sizing: border-box; transition: background-color 0.25s, border-color 0.25s, color 0.25s; }
     
     body {
         margin: 0; 
@@ -39,7 +39,6 @@
         background: var(--bg); 
         color: var(--text); 
         line-height: 1.6;
-        background-attachment: fixed;
     }
 
     @keyframes slideUp {
@@ -69,12 +68,15 @@
         animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) backwards;
     }
 
+    .section-label { font-size: 13px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; display: block; }
+
     .person-input-box { 
         background: var(--bg); 
         border: 1px solid var(--border); 
         border-radius: 12px; 
         padding: 24px; 
         margin-bottom: 16px; 
+        border-left: 4px solid var(--accent);
     }
 
     .chip {
@@ -84,20 +86,13 @@
         color: white;
         padding: 6px 14px; 
         border-radius: 99px; 
-        margin: 6px; 
+        margin: 6px 6px 0 0; 
         font-size: 13px; 
         font-weight: 600;
-        box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
     }
     .chip span { cursor: pointer; margin-left: 8px; font-size: 16px; opacity: 0.8; }
-    .chip span:hover { opacity: 1; }
 
-    .person-title { 
-        font-size: 28px; 
-        font-weight: 800; 
-        margin: 60px 0 24px 0; 
-        color: var(--text);
-    }
+    .person-title { font-size: 28px; font-weight: 800; margin: 60px 0 24px 0; color: var(--text); }
 
     table { width: 100%; border-collapse: separate; border-spacing: 0; }
     th { text-align: left; padding: 16px; border-bottom: 2px solid var(--border); color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
@@ -105,15 +100,8 @@
     .total-row { background: rgba(59, 130, 246, 0.05); font-weight: 800; color: var(--accent); }
 
     .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 32px; }
-    .chart-container { 
-        min-height: 320px; 
-        background: var(--card); 
-        border-radius: var(--radius); 
-        padding: 20px; 
-        border: 1px solid var(--border);
-    }
+    .chart-container { min-height: 320px; background: var(--card); border-radius: var(--radius); padding: 20px; border: 1px solid var(--border); }
 
-    /* Modern Inputs & Date Selector */
     input[type="text"], input[type="date"] { 
         padding: 12px 16px; 
         border: 2px solid var(--border); 
@@ -126,26 +114,15 @@
     }
     input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15); }
 
-    /* Button styles */
-    button { 
-        font-family: inherit; font-size: 14px; font-weight: 700; 
-        padding: 12px 24px; border-radius: 10px; 
-        cursor: pointer; border: 1px solid var(--border);
-    }
-    .btn-primary { 
-        background: linear-gradient(135deg, var(--accent), #1d4ed8); 
-        color: white; border: none; 
-        box-shadow: 0 4px 14px 0 rgba(37,99,235,0.39);
-    }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(37,99,235,0.45); }
+    button { font-family: inherit; font-size: 14px; font-weight: 700; padding: 12px 24px; border-radius: 10px; cursor: pointer; border: 1px solid var(--border); }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), #1d4ed8); color: white; border: none; box-shadow: 0 4px 14px 0 rgba(37,99,235,0.3); }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(37,99,235,0.4); }
     .btn-outline { background: var(--card); color: var(--text); }
     .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-danger { background: none; border: none; color: var(--error); padding: 0; font-size: 12px; font-weight: 800; }
     button:active { transform: scale(0.97); }
 
-    @media (max-width: 768px) { 
-        .header { flex-direction: column; text-align: center; gap: 24px; }
-        .charts-grid { grid-template-columns: 1fr; } 
-    }
+    @media (max-width: 768px) { .charts-grid { grid-template-columns: 1fr; } }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -161,23 +138,26 @@
     </div>
 
     <form method="POST" onsubmit="return prepSubmit()">
-        <div class="card" style="animation-delay: 0.1s;">
-            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
-                <h3 style="margin:0; font-size: 20px; font-weight: 800;">Configurations</h3>
-                <button type="button" class="btn-outline" onclick="addPerson()" style="border-style: dashed;">+ Add Person</button>
+        <div class="card">
+            <label class="section-label">Add New Person</label>
+            <div style="display:flex; gap:12px; margin-bottom: 32px;">
+                <input type="text" id="newPersonName" placeholder="Enter name (e.g. My Team)..." style="flex:1;" 
+                       onkeydown="if(event.key==='Enter'){ event.preventDefault(); addPerson(); }">
+                <button type="button" class="btn-primary" onclick="addPerson()">+ Add Person</button>
             </div>
-            
+
+            <label class="section-label">Manage People & Handles</label>
             <div id="peopleList"></div>
             
             <input type="hidden" name="people_json" id="peopleJson">
             
             <div style="margin-top: 40px; display: flex; flex-wrap: wrap; gap: 24px; align-items: center; border-top: 2px solid var(--border); padding-top: 32px;">
                 <div style="display:flex; align-items:center; gap:12px;">
-                    <label style="font-size:14px; font-weight:700; color:var(--muted)">START DATE</label>
+                    <label style="font-size:14px; font-weight:700; color:var(--muted)">START</label>
                     <input type="date" name="start_date" id="sd" required>
                 </div>
                 <div style="display:flex; align-items:center; gap:12px;">
-                    <label style="font-size:14px; font-weight:700; color:var(--muted)">END DATE</label>
+                    <label style="font-size:14px; font-weight:700; color:var(--muted)">END</label>
                     <input type="date" name="end_date" id="ed" required>
                 </div>
                 <button type="submit" class="btn-primary" style="margin-left:auto; min-width: 180px;">Run Analysis</button>
@@ -206,7 +186,7 @@
                         {% endif %}
                     </tr>
                     {% endfor %}
-                    <tr class="total-row"><td>Total</td><td>{{ person.total_unique }}</td><td>{{ "%.1f"|format(person.avg_rating) }}</td></tr>
+                    <tr class="total-row"><td>Grand Total Unique</td><td>{{ person.total_unique }}</td><td>{{ "%.1f"|format(person.avg_rating) }}</td></tr>
                 </tbody>
             </table>
             <div class="charts-grid">
@@ -222,10 +202,12 @@
 let people = JSON.parse(localStorage.getItem('cf_stats_v2_data') || '[]');
 
 function addPerson() {
-    const name = prompt("Enter Person's Name:");
+    const input = document.getElementById('newPersonName');
+    const name = input.value.trim();
     if (name) { 
         people.push({ name: name, handles: [] }); 
-        render(); 
+        input.value = ""; 
+        render('newPersonName'); // Focus remains on "Add Person" input
     }
 }
 
@@ -235,7 +217,7 @@ function addHandle(idx) {
     if (handle && !people[idx].handles.includes(handle)) {
         people[idx].handles.push(handle);
         input.value = ""; 
-        render(`inp-${idx}`); 
+        render(`inp-${idx}`); // Focus remains on the handle input for that person
     }
 }
 
@@ -245,26 +227,25 @@ function removePerson(idx) { if (confirm(`Delete everything for ${people[idx].na
 function render(focusId = null) {
     const container = document.getElementById('peopleList');
     if (people.length === 0) {
-        container.innerHTML = '<div style="padding: 60px; text-align: center; border: 3px dashed var(--border); border-radius: 20px; color: var(--muted); font-weight: 600;">Click "+ Add Person" to get started.</div>';
-        return;
+        container.innerHTML = '<div style="padding: 40px; text-align: center; border: 2px dashed var(--border); border-radius: 12px; color: var(--muted); font-size: 14px;">No people added yet.</div>';
+    } else {
+        container.innerHTML = people.map((p, i) => `
+            <div class="person-input-box">
+                <div style="display:flex; justify-content:space-between; margin-bottom:16px; align-items:center;">
+                    <strong style="font-size:18px;">${p.name}</strong>
+                    <button type="button" class="btn-danger" onclick="removePerson(${i})">REMOVE</button>
+                </div>
+                <div style="display:flex; gap:12px;">
+                    <input type="text" id="inp-${i}" placeholder="Add handle..." style="flex:1;" 
+                           onkeydown="if(event.key==='Enter'){ event.preventDefault(); addHandle(${i}); }">
+                    <button type="button" class="btn-outline" onclick="addHandle(${i})" style="padding: 0 20px;">Add</button>
+                </div>
+                <div style="margin-top:12px; display: flex; flex-wrap: wrap;">
+                    ${p.handles.map((h, hi) => `<div class="chip">${h}<span onclick="removeHandle(${i}, ${hi})">&times;</span></div>`).join('')}
+                </div>
+            </div>
+        `).join('');
     }
-    
-    container.innerHTML = people.map((p, i) => `
-        <div class="person-input-box">
-            <div style="display:flex; justify-content:space-between; margin-bottom:16px; align-items:center;">
-                <strong style="font-size:18px; letter-spacing:-0.5px;">${p.name}</strong>
-                <button type="button" onclick="removePerson(${i})" style="color:var(--error); background:none; border:none; padding:0; font-size:12px;">REMOVE PERSON</button>
-            </div>
-            <div style="display:flex; gap:12px;">
-                <input type="text" id="inp-${i}" placeholder="Add handles (e.g. tourist)..." style="flex:1;" 
-                       onkeydown="if(event.key==='Enter'){ event.preventDefault(); addHandle(${i}); }">
-                <button type="button" class="btn-primary" onclick="addHandle(${i})" style="padding: 0 20px;">Add</button>
-            </div>
-            <div style="margin-top:16px;">
-                ${p.handles.map((h, hi) => `<div class="chip">${h}<span onclick="removeHandle(${i}, ${hi})">&times;</span></div>`).join('')}
-            </div>
-        </div>
-    `).join('');
 
     localStorage.setItem('cf_stats_v2_data', JSON.stringify(people));
     if (focusId) {
@@ -286,7 +267,6 @@ function toggleTheme() {
     localStorage.setItem('cf_theme_v2', t);
 }
 
-// Init
 document.getElementById('sd').value = localStorage.getItem('s_date') || '';
 document.getElementById('ed').value = localStorage.getItem('e_date') || '';
 document.documentElement.setAttribute('data-theme', localStorage.getItem('cf_theme_v2') || 'light');
@@ -298,23 +278,15 @@ render();
         const idx = {{ loop.index0 }};
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
         const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
-        const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent');
-        const success = getComputedStyle(document.documentElement).getPropertyValue('--success');
+        const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+        const success = getComputedStyle(document.documentElement).getPropertyValue('--success').trim();
 
         const rData = {{ person.rating_hist | tojson }};
         const rLabels = Object.keys(rData).map(Number).sort((a,b) => a-b);
-        
         new Chart(document.getElementById(`rating-${idx}`), {
             type: 'bar',
             data: { labels: rLabels, datasets: [{ data: rLabels.map(l => rData[l]), backgroundColor: accent, borderRadius: 6 }] },
-            options: { 
-                maintainAspectRatio: false, 
-                plugins: { legend: { display: false }, title: { display: true, text: 'Problem Difficulty', font: { size: 16, weight: '800' }, color: isDark ? '#fff' : '#000' } },
-                scales: { 
-                    x: { grid: { display: false } },
-                    y: { grid: { color: gridColor }, beginAtZero: true, ticks: { stepSize: 1 } } 
-                }
-            }
+            options: { maintainAspectRatio: false, plugins: { legend: { display: false }, title: { display: true, text: 'Difficulty', font: { weight: '800' } } }, scales: { x: { grid: { display: false } }, y: { grid: { color: gridColor }, beginAtZero: true, ticks: { stepSize: 1 } } } }
         });
 
         const tData = {{ person.tag_hist | tojson }};
@@ -322,15 +294,7 @@ render();
         new Chart(document.getElementById(`tags-${idx}`), {
             type: 'bar',
             data: { labels: tSorted.map(x => x[0]), datasets: [{ data: tSorted.map(x => x[1]), backgroundColor: success, borderRadius: 6 }] },
-            options: { 
-                indexAxis: 'y', 
-                maintainAspectRatio: false, 
-                plugins: { legend: { display: false }, title: { display: true, text: 'Top 10 Topics', font: { size: 16, weight: '800' }, color: isDark ? '#fff' : '#000' } },
-                scales: { 
-                    y: { grid: { display: false } },
-                    x: { grid: { color: gridColor }, beginAtZero: true, ticks: { stepSize: 1 } } 
-                }
-            }
+            options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false }, title: { display: true, text: 'Top Topics', font: { weight: '800' } } }, scales: { y: { grid: { display: false } }, x: { grid: { color: gridColor }, beginAtZero: true, ticks: { stepSize: 1 } } } }
         });
     })();
     {% endfor %}
