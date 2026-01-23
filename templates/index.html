@@ -65,14 +65,19 @@ h1 { margin: 0 0 4px 0; }
 
 label { font-weight: 600; }
 
-input[type="text"] {
-    padding: 8px;
+input[type="text"],
+input[type="date"] {
+    padding: 8px 10px;
     border-radius: 6px;
     border: 1px solid var(--border);
-    width: 220px;
-    margin-right: 8px;
     background: var(--bg);
     color: var(--text);
+    font-family: inherit;
+}
+
+input[type="text"] {
+    width: 220px;
+    margin-right: 8px;
 }
 
 button {
@@ -172,9 +177,47 @@ th { background: var(--bg); }
     color: var(--muted);
     display: none;
 }
+
+/* ---------- DATE RANGE POLISH ---------- */
+
+.date-range {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+}
+
+.date-range-title {
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.date-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.date-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.date-field label {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+/* keep calendar visible in dark mode */
+[data-theme="dark"] input[type="date"] {
+    background: #ffffff;
+    color: #000000;
+    color-scheme: light;
+}
 </style>
 
-<!-- ✅ Chart.js added -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 </head>
 
@@ -185,7 +228,7 @@ th { background: var(--bg); }
     <div>
         <h1>Codeforces Statistics</h1>
         <div class="subtitle">
-            Solved problems from {{ start_date }} (inclusive)
+           Solved problems within the selected date range
         </div>
     </div>
     <button class="secondary" onclick="toggleTheme()">Toggle theme</button>
@@ -193,14 +236,29 @@ th { background: var(--bg); }
 
 <div class="card">
 <form method="post" onsubmit="return onSubmit()">
+
     <label>Add Codeforces handle</label><br><br>
 
     <input type="text" id="handleInput" placeholder="tourist"
            onkeydown="handleKeyDown(event)">
-
     <button type="button" class="secondary" onclick="addHandle()">Add</button>
 
     <div class="handles" id="handlesContainer"></div>
+
+    <div class="date-range">
+        <div class="date-range-title">Date range</div>
+        <div class="date-row">
+            <div class="date-field">
+                <label>From</label>
+                <input type="date" name="start_date" id="startDate">
+            </div>
+            <div class="date-field">
+                <label>To</label>
+                <input type="date" name="end_date" id="endDate">
+            </div>
+        </div>
+    </div>
+
     <input type="hidden" name="handles" id="handlesField">
 
     <br>
@@ -277,8 +335,6 @@ let handles = JSON.parse(localStorage.getItem("handles") || "[]");
 let ratingChart = null;
 let tagChart = null;
 
-/* ---------- EXISTING LOGIC ---------- */
-
 function saveHandles() {
     localStorage.setItem("handles", JSON.stringify(handles));
 }
@@ -326,8 +382,6 @@ function onSubmit() {
     return true;
 }
 
-/* ---------- THEME ---------- */
-
 function toggleTheme() {
     const current = document.documentElement.getAttribute("data-theme") || "light";
     const next = current === "dark" ? "light" : "dark";
@@ -341,9 +395,15 @@ function toggleTheme() {
         "data-theme",
         localStorage.getItem("theme") || "light"
     );
+
+    startDate.value = localStorage.getItem("startDate") || "";
+    endDate.value = localStorage.getItem("endDate") || "";
 })();
 
-/* ---------- CHARTS (NEW, SAFE) ---------- */
+startDate.onchange = () => localStorage.setItem("startDate", startDate.value);
+endDate.onchange = () => localStorage.setItem("endDate", endDate.value);
+
+/* ---------- CHARTS ---------- */
 
 window.addEventListener("load", function () {
 
@@ -355,8 +415,6 @@ window.addEventListener("load", function () {
 
     const ctx = document.getElementById("ratingChart");
     if (!ctx) return;
-
-    if (ratingChart) ratingChart.destroy();
 
     ratingChart = new Chart(ctx, {
         type: "bar",
@@ -372,28 +430,18 @@ window.addEventListener("load", function () {
 {% if tag_hist %}
 (function () {
     const map = {{ tag_hist | tojson }};
-    const entries = Object.entries(map)
-        .sort((a,b)=>b[1]-a[1])
-        .slice(0,20);
-
-    const labels = entries.map(e => e[0]);
-    const data = entries.map(e => e[1]);
+    const entries = Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,20);
 
     const ctx = document.getElementById("tagChart");
     if (!ctx) return;
 
-    if (tagChart) tagChart.destroy();
-
     tagChart = new Chart(ctx, {
         type: "bar",
         data: {
-            labels,
-            datasets: [{ label: "Problems", data }]
+            labels: entries.map(e=>e[0]),
+            datasets: [{ label: "Problems", data: entries.map(e=>e[1]) }]
         },
-        options: {
-            indexAxis: "y",
-            responsive: true
-        }
+        options: { indexAxis: "y", responsive: true }
     });
 })();
 {% endif %}
