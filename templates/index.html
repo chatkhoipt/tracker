@@ -2,124 +2,52 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Codeforces Statistics</title>
+<title>Codeforces Statistics Pro</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
     :root {
         color-scheme: light;
         --bg: #f0f4f8; 
-        --card: rgba(255, 255, 255, 0.7); /* Transparent for Glassmorphism */
+        --card: rgba(255, 255, 255, 0.7); 
         --border: rgba(226, 232, 240, 0.8);
         --text: #0f172a;
         --muted: #64748b; 
         --accent: #2563eb; 
         --success: #16a34a; 
         --error: #dc2626;
-        --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
         --radius: 20px;
     }
     [data-theme="dark"] {
         color-scheme: dark;
         --bg: #020617; 
         --card: rgba(30, 41, 59, 0.7); 
-        --border: rgba(51, 65, 85, 0.5); 
+        --border: rgba(51, 65, 85, 0.4); 
         --text: #f1f5f9; 
         --muted: #94a3b8; 
         --accent: #60a5fa;
     }
 
     * { box-sizing: border-box; transition: background-color 0.4s, color 0.4s; }
-    
-    body { 
-        margin: 0; 
-        font-family: 'Inter', -apple-system, sans-serif; 
-        background: var(--bg); 
-        color: var(--text); 
-        overflow-x: hidden;
-    }
+    body { margin: 0; font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
 
-    /* Particle Canvas */
-    #bg-canvas {
-        position: fixed;
-        top: 0; left: 0;
-        width: 100%; height: 100%;
-        z-index: -1;
-        pointer-events: none;
-    }
-
+    #bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
     .container { max-width: 1000px; margin: 40px auto; padding: 0 24px; position: relative; }
 
-    /* Glassmorphism Effect */
-    .glass {
-        background: var(--card);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-    }
+    .glass { background: var(--card); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1); }
 
-    /* Entrance Animations */
-    @keyframes reveal {
-        from { opacity: 0; transform: translateY(20px) scale(0.98); }
-        to { opacity: 1; transform: translateY(0) scale(1); }
-    }
+    @keyframes reveal { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .card { padding: 32px; margin-bottom: 32px; animation: reveal 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+    .header { margin-bottom: 48px; display: flex; justify-content: space-between; align-items: center; animation: reveal 0.6s ease-out; }
 
-    .card { 
-        padding: 32px; 
-        margin-bottom: 32px; 
-        animation: reveal 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; 
-    }
-
-    .header { 
-        margin-bottom: 48px; 
-        display: flex; 
-        justify-content: space-between; 
-        align-items: center; 
-        animation: reveal 0.6s ease-out;
-    }
-
-    /* Custom Input Styling */
-    input[type="text"], input[type="date"] {
-        padding: 12px 16px;
-        border: 2px solid var(--border);
-        border-radius: 12px;
-        background: rgba(255,255,255,0.05);
-        color: var(--text);
-        outline: none;
-        transition: all 0.3s ease;
-    }
+    input[type="text"], input[type="date"] { padding: 12px 16px; border: 2px solid var(--border); border-radius: 12px; background: rgba(255,255,255,0.05); color: var(--text); outline: none; transition: all 0.3s ease; }
     input:focus { border-color: var(--accent); box-shadow: 0 0 15px rgba(37, 99, 235, 0.2); transform: translateY(-1px); }
 
-    /* Button Hover Effects */
-    button { 
-        font-family: inherit; font-size: 14px; font-weight: 700; padding: 12px 24px; 
-        border-radius: 12px; cursor: pointer; border: 1px solid var(--border);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .btn-primary { 
-        background: linear-gradient(135deg, var(--accent), #1d4ed8); 
-        color: white; border: none;
-    }
-    .btn-primary:hover { 
-        transform: translateY(-3px) scale(1.02); 
-        box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3); 
-    }
+    button { font-family: inherit; font-size: 14px; font-weight: 700; padding: 12px 24px; border-radius: 12px; cursor: pointer; border: 1px solid var(--border); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), #1d4ed8); color: white; border: none; }
+    .btn-primary:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3); }
 
-    .person-input-box {
-        background: rgba(0,0,0,0.03);
-        border-radius: 16px;
-        padding: 20px;
-        margin-bottom: 15px;
-        border-left: 5px solid var(--accent);
-    }
-
-    .chip {
-        display: inline-flex; align-items: center; background: var(--accent); color: white;
-        padding: 6px 14px; border-radius: 99px; margin: 6px 6px 0 0; 
-        font-size: 13px; font-weight: 600;
-        animation: reveal 0.4s ease-out;
-    }
+    .person-input-box { background: rgba(0,0,0,0.03); border-radius: 16px; padding: 20px; margin-bottom: 15px; border-left: 5px solid var(--accent); }
+    .chip { display: inline-flex; align-items: center; background: var(--accent); color: white; padding: 6px 14px; border-radius: 99px; margin: 6px 6px 0 0; font-size: 13px; font-weight: 600; animation: reveal 0.4s ease-out; }
 
     table { width: 100%; border-collapse: separate; border-spacing: 0 8px; }
     th { text-align: left; padding: 12px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
@@ -128,7 +56,7 @@
     td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
 
     .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
-    
+    .chart-container { height: 320px; }
     @media (max-width: 768px) { .charts-grid { grid-template-columns: 1fr; } }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -146,17 +74,15 @@
         <button type="button" class="glass" onclick="toggleTheme()">🌓 Theme</button>
     </div>
 
-    <form method="POST" onsubmit="return prepSubmit()">
+    <form method="POST" id="mainForm" onsubmit="return prepSubmit()">
         <div class="card glass">
             <label style="font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase;">Team Construction</label>
             <div style="display:flex; gap:12px; margin: 15px 0 30px 0;">
-                <input type="text" id="newPersonName" placeholder="Person/Team Name..." style="flex:1;" onkeydown="if(event.key==='Enter'){ event.preventDefault(); addPerson(); }">
+                <input type="text" id="newPersonName" placeholder="New Person Name..." style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault(); addPerson();}">
                 <button type="button" class="btn-primary" onclick="addPerson()">+ Add</button>
             </div>
-
             <div id="peopleList"></div>
             <input type="hidden" name="people_json" id="peopleJson">
-            
             <div style="margin-top: 40px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; border-top: 1px solid var(--border); padding-top: 30px;">
                 <div style="display:flex; gap:10px;">
                     <input type="date" name="start_date" id="sd" required>
@@ -167,140 +93,175 @@
         </div>
     </form>
 
-    {% if people_results %}
-        {% for person in people_results %}
-        {% set p_idx = loop.index0 %}
-        <div class="card glass" style="animation-delay: {{ p_idx * 0.2 }}s;">
-            <h2 style="margin-top:0;">{{ person.name }}</h2>
-            <table id="table-{{ p_idx }}">
-                <thead><tr><th>Handle</th><th>Solved</th><th>Avg Rating</th></tr></thead>
-                <tbody>
-                    {% for h in person.handles %}
-                    <tr>
-                        <td><a href="https://codeforces.com/profile/{{ h.handle }}" target="_blank" style="color: var(--accent); text-decoration: none; font-weight: 700;">{{ h.handle }}</a></td>
-                        {% if h.stats %}
-                            <td>{{ h.stats.problems }}</td><td>{{ "%.1f"|format(h.stats.avg_rating) }}</td>
-                        {% else %}
-                            <td colspan="2">
-                                <span style="color:var(--error)">Fetch Error</span>
-                                <button type="button" style="padding: 4px 10px; font-size: 11px; margin-left:10px;" onclick="retryHandle({{ p_idx }}, '{{ h.handle }}', this)">Retry</button>
-                            </td>
-                        {% endif %}
-                    </tr>
-                    {% endfor %}
-                    <tr style="font-weight:900; color:var(--accent);">
-                        <td>Total</td>
-                        <td>{{ person.total_unique }}</td>
-                        <td>{{ "%.1f"|format(person.avg_rating) }}</td>
-                    </tr>
-                </tbody>
-            </table>
-            <div class="charts-grid">
-                <div class="chart-container" style="height: 300px;"><canvas id="rating-{{ p_idx }}"></canvas></div>
-                <div class="chart-container" style="height: 300px;"><canvas id="tags-{{ p_idx }}"></canvas></div>
+    <div id="resultsArea">
+        {% if people_results %}
+            {% for person in people_results %}
+            {% set p_idx = loop.index0 %}
+            <div class="card glass result-card" data-idx="{{ p_idx }}">
+                <h2 style="margin-top:0;">{{ person.name }}</h2>
+                <table id="table-{{ p_idx }}">
+                    <thead><tr><th>Handle</th><th>Solved</th><th>Avg Rating</th></tr></thead>
+                    <tbody>
+                        {% for h in person.handles %}
+                        <tr data-handle="{{ h.handle }}">
+                            <td style="font-weight:700;"><a href="https://codeforces.com/profile/{{ h.handle }}" target="_blank" style="color:var(--accent); text-decoration:none;">{{ h.handle }}</a></td>
+                            {% if h.stats %}
+                                <td class="s-val">{{ h.stats.problems }}</td><td class="r-val">{{ "%.1f"|format(h.stats.avg_rating) }}</td>
+                            {% else %}
+                                <td colspan="2" class="err-cell"><span style="color:var(--error)">Fetch Error</span> <button type="button" style="padding:4px 8px; font-size:11px; margin-left:10px;" onclick="retryHandle({{ p_idx }}, '{{ h.handle }}', this)">Retry</button></td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                        <tr style="font-weight:900; color:var(--accent);">
+                            <td>Total</td>
+                            <td id="total-solved-{{ p_idx }}">{{ person.total_unique }}</td>
+                            <td id="total-avg-{{ p_idx }}">{{ "%.1f"|format(person.avg_rating) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="charts-grid">
+                    <div class="chart-container"><canvas id="rating-{{ p_idx }}"></canvas></div>
+                    <div class="chart-container"><canvas id="tags-{{ p_idx }}"></canvas></div>
+                </div>
             </div>
-        </div>
-        {% endfor %}
-    {% endif %}
+            {% endfor %}
+        {% endif %}
+    </div>
 </div>
 
 <script>
-// --- PARTICLE SYSTEM ---
+// --- Particle Engine ---
 const canvas = document.getElementById('bg-canvas');
 const ctx = canvas.getContext('2d');
 let particles = [];
-
 function initParticles() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     particles = [];
     const count = Math.floor(window.innerWidth / 15);
     for(let i=0; i<count; i++) {
-        particles.push({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
-            vx: (Math.random() - 0.5) * 0.5,
-            vy: (Math.random() - 0.5) * 0.5,
-            size: Math.random() * 2 + 1
-        });
+        particles.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, vx: (Math.random()-0.5)*0.5, vy: (Math.random()-0.5)*0.5, size: Math.random()*2+1 });
     }
 }
-
 function drawParticles() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     ctx.fillStyle = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.05)';
     ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)';
-
     particles.forEach((p, i) => {
         p.x += p.vx; p.y += p.vy;
-        if(p.x < 0 || p.x > canvas.width) p.vx *= -1;
-        if(p.y < 0 || p.y > canvas.height) p.vy *= -1;
-
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
-        ctx.fill();
-
+        if(p.x<0 || p.x>canvas.width) p.vx*=-1; if(p.y<0 || p.y>canvas.height) p.vy*=-1;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
         for(let j=i+1; j<particles.length; j++) {
-            const p2 = particles[j];
-            const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
-            if(dist < 120) {
-                ctx.beginPath();
-                ctx.moveTo(p.x, p.y);
-                ctx.lineTo(p2.x, p2.y);
-                ctx.stroke();
-            }
+            const d = Math.hypot(p.x-particles[j].x, p.y-particles[j].y);
+            if(d<120) { ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke(); }
         }
     });
     requestAnimationFrame(drawParticles);
 }
-
-window.addEventListener('resize', initParticles);
-initParticles();
-drawParticles();
+window.addEventListener('resize', initParticles); initParticles(); drawParticles();
 
 // --- LOGIC ---
 let people = JSON.parse(localStorage.getItem('cf_stats_v2_data') || '[]');
 const personSolvedSets = {};
 const chartInstances = {};
 
+// Handle Persistence (Reloading Page)
 {% if people_results %}
-    {% for person in people_results %}
-        personSolvedSets[{{ loop.index0 }}] = {{ person.raw_problems | tojson }};
-    {% endfor %}
+    // If Flask rendered new results, update cache immediately
+    const serverResults = {{ people_results | tojson }};
+    localStorage.setItem('cf_last_run_results', JSON.stringify(serverResults));
+    serverResults.forEach((p, i) => personSolvedSets[i] = p.raw_problems);
+{% else %}
+    // If no Flask results, try loading from LocalStorage
+    window.addEventListener('load', () => {
+        const cached = JSON.parse(localStorage.getItem('cf_last_run_results'));
+        if(cached) restoreFromCache(cached);
+    });
 {% endif %}
 
-function addPerson() {
-    const input = document.getElementById('newPersonName');
-    if (input.value.trim()) { 
-        people.push({ name: input.value.trim(), handles: [] }); 
-        input.value = ""; render();
-    }
+function restoreFromCache(cachedData) {
+    const area = document.getElementById('resultsArea');
+    area.innerHTML = cachedData.map((person, p_idx) => {
+        personSolvedSets[p_idx] = person.raw_problems;
+        return `
+        <div class="card glass result-card" data-idx="${p_idx}">
+            <h2 style="margin-top:0;">${person.name}</h2>
+            <table id="table-${p_idx}">
+                <thead><tr><th>Handle</th><th>Solved</th><th>Avg Rating</th></tr></thead>
+                <tbody>
+                    ${person.handles.map(h => `
+                        <tr data-handle="${h.handle}">
+                            <td style="font-weight:700;"><a href="https://codeforces.com/profile/${h.handle}" target="_blank" style="color:var(--accent); text-decoration:none;">${h.handle}</a></td>
+                            ${h.stats ? `<td class="s-val">${h.stats.problems}</td><td class="r-val">${h.stats.avg_rating.toFixed(1)}</td>` : 
+                            `<td colspan="2" class="err-cell"><span style="color:var(--error)">Fetch Error</span> <button type="button" style="padding:4px 8px; font-size:11px;" onclick="retryHandle(${p_idx}, '${h.handle}', this)">Retry</button></td>`}
+                        </tr>
+                    `).join('')}
+                    <tr style="font-weight:900; color:var(--accent);"><td>Total Unique</td><td id="total-solved-${p_idx}">${person.total_unique}</td><td id="total-avg-${p_idx}">${person.avg_rating.toFixed(1)}</td></tr>
+                </tbody>
+            </table>
+            <div class="charts-grid">
+                <div class="chart-container"><canvas id="rating-${p_idx}"></canvas></div>
+                <div class="chart-container"><canvas id="tags-${p_idx}"></canvas></div>
+            </div>
+        </div>`;
+    }).join('');
+    cachedData.forEach((_, i) => initCharts(i));
 }
 
+function updateCache() {
+    const currentResults = [];
+    document.querySelectorAll('.result-card').forEach(card => {
+        const idx = card.dataset.idx;
+        const handles = [];
+        card.querySelectorAll('tbody tr[data-handle]').forEach(tr => {
+            const h = tr.dataset.handle;
+            const sVal = tr.querySelector('.s-val')?.textContent;
+            const rVal = tr.querySelector('.r-val')?.textContent;
+            handles.push({ handle: h, stats: sVal ? { problems: parseInt(sVal), avg_rating: parseFloat(rVal) } : null });
+        });
+        currentResults.push({
+            name: card.querySelector('h2').textContent,
+            handles: handles,
+            total_unique: parseInt(document.getElementById(`total-solved-${idx}`).textContent),
+            avg_rating: parseFloat(document.getElementById(`total-avg-${idx}`).textContent),
+            raw_problems: personSolvedSets[idx]
+        });
+    });
+    localStorage.setItem('cf_last_run_results', JSON.stringify(currentResults));
+}
+
+// User Actions
+function addPerson() {
+    const input = document.getElementById('newPersonName');
+    if (input.value.trim()) { people.push({ name: input.value.trim(), handles: [] }); input.value = ""; render(); }
+}
 async function addHandle(idx) {
     const input = document.getElementById(`inp-${idx}`);
     const h = input.value.trim();
     if (!h || people[idx].handles.includes(h)) return;
-
     try {
         const resp = await fetch(`/api/check_handle/${h}`);
-        if ((await resp.json()).exists) {
-            people[idx].handles.push(h);
-            render();
-        } else { alert("User not found."); }
+        if ((await resp.json()).exists) { people[idx].handles.push(h); render(); } else { alert("User not found."); }
     } catch (e) { alert("Error checking handle."); }
 }
-
+function render() {
+    document.getElementById('peopleList').innerHTML = people.map((p, i) => `
+        <div class="person-input-box">
+            <div style="display:flex; justify-content:space-between; margin-bottom:12px;"><strong>${p.name}</strong><button type="button" style="color:var(--error); border:none; background:none; padding:0; font-size:11px;" onclick="removePerson(${i})">DELETE</button></div>
+            <div style="display:flex; gap:10px;"><input type="text" id="inp-${i}" placeholder="Add CF handle..." style="flex:1;"><button type="button" class="glass" onclick="addHandle(${i})">Add</button></div>
+            <div style="margin-top:10px;">${p.handles.map((h, hi) => `<div class="chip">${h}<span style="cursor:pointer; margin-left:8px;" onclick="removeHandle(${i}, ${hi})">&times;</span></div>`).join('')}</div>
+        </div>`).join('');
+    localStorage.setItem('cf_stats_v2_data', JSON.stringify(people));
+}
 function removeHandle(pIdx, hIdx) { people[pIdx].handles.splice(hIdx, 1); render(); }
 function removePerson(idx) { if (confirm(`Remove ${people[idx].name}?`)) { people.splice(idx, 1); render(); } }
 
+// Retry & Updates
 async function retryHandle(pIdx, handle, btn) {
     btn.disabled = true; btn.textContent = "...";
     try {
         const resp = await fetch('/api/fetch_handle', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 handle: handle,
                 start_ts: Math.floor(new Date(document.getElementById('sd').value).getTime()/1000),
@@ -308,41 +269,55 @@ async function retryHandle(pIdx, handle, btn) {
             })
         });
         const data = await resp.json();
-        if(data.success) updateUI(pIdx, handle, data.stats, data.problems);
-        else { alert("Failed."); btn.disabled = false; btn.textContent = "Retry"; }
+        if(data.success) {
+            updateUI(pIdx, handle, data.stats, data.problems);
+            updateCache(); // Save state
+        } else { alert("Failed."); btn.disabled = false; btn.textContent = "Retry"; }
     } catch(e) { btn.disabled = false; btn.textContent = "Retry"; }
 }
 
 function updateUI(pIdx, handle, stats, newProbs) {
     const table = document.getElementById(`table-${pIdx}`);
-    table.querySelectorAll('tbody tr').forEach(row => {
-        if(row.cells[0].textContent.trim() === handle) {
-            row.innerHTML = `<td><a href="https://codeforces.com/profile/${handle}" target="_blank" style="color: var(--accent); font-weight: 700;">${handle}</a></td><td>${stats.problems}</td><td>${stats.avg_rating.toFixed(1)}</td>`;
-        }
-    });
+    // Update individual row
+    const row = [...table.querySelectorAll('tbody tr')].find(r => r.dataset.handle === handle);
+    if(row) {
+        row.innerHTML = `<td style="font-weight:700;"><a href="https://codeforces.com/profile/${handle}" target="_blank" style="color:var(--accent); text-decoration:none;">${handle}</a></td><td class="s-val">${stats.problems}</td><td class="r-val">${stats.avg_rating.toFixed(1)}</td>`;
+    }
 
-    Object.assign(personSolvedSets[pIdx], newProbs);
+    // Merge & Recalculate
+    personSolvedSets[pIdx] = { ...personSolvedSets[pIdx], ...newProbs };
     const all = Object.values(personSolvedSets[pIdx]);
     const rated = all.map(p => p.rating).filter(r => r != null);
+    
+    // Update Totals
+    document.getElementById(`total-solved-${pIdx}`).textContent = all.length;
+    document.getElementById(`total-avg-${pIdx}`).textContent = rated.length ? (rated.reduce((a,b)=>a+b,0)/rated.length).toFixed(1) : "0.0";
+
     updateCharts(pIdx, all);
 }
 
-function render() {
-    const container = document.getElementById('peopleList');
-    container.innerHTML = people.map((p, i) => `
-        <div class="person-input-box" style="animation: reveal 0.4s ease-out both;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
-                <strong>${p.name}</strong>
-                <button type="button" style="color:var(--error); border:none; background:none; padding:0; font-size:11px;" onclick="removePerson(${i})">DELETE</button>
-            </div>
-            <div style="display:flex; gap:10px;">
-                <input type="text" id="inp-${i}" placeholder="Add CF handle..." style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault(); addHandle(${i});}">
-                <button type="button" class="glass" onclick="addHandle(${i})">Add</button>
-            </div>
-            <div style="margin-top:10px;">${p.handles.map((h, hi) => `<div class="chip">${h}<span style="cursor:pointer; margin-left:8px;" onclick="removeHandle(${i}, ${hi})">&times;</span></div>`).join('')}</div>
-        </div>
-    `).join('');
-    localStorage.setItem('cf_stats_v2_data', JSON.stringify(people));
+function initCharts(i) {
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    const success = getComputedStyle(document.documentElement).getPropertyValue('--success').trim();
+    
+    // Config: Add 'Problems: ' prefix
+    const tooltipConfig = {
+        callbacks: {
+            label: (ctx) => 'Problems: ' + ctx.formattedValue
+        }
+    };
+
+    chartInstances[`r-${i}`] = new Chart(document.getElementById(`rating-${i}`), {
+        type: 'bar',
+        data: { labels: [], datasets: [{ data: [], backgroundColor: accent, borderRadius: 8 }] },
+        options: { maintainAspectRatio: false, plugins: { tooltip: tooltipConfig, title: { display: true, text: 'Difficulty Profile', font: {weight:'800'} }, legend: {display:false} } }
+    });
+    chartInstances[`t-${i}`] = new Chart(document.getElementById(`tags-${i}`), {
+        type: 'bar',
+        data: { labels: [], datasets: [{ data: [], backgroundColor: success, borderRadius: 8 }] },
+        options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { tooltip: tooltipConfig, title: { display: true, text: 'Skill Distribution', font: {weight:'800'} }, legend: {display:false} } }
+    });
+    updateCharts(i, Object.values(personSolvedSets[i]));
 }
 
 function updateCharts(idx, allProblems) {
@@ -351,6 +326,7 @@ function updateCharts(idx, allProblems) {
         if(p.rating) rHist[p.rating] = (rHist[p.rating] || 0) + 1;
         p.tags?.forEach(t => tHist[t] = (tHist[t] || 0) + 1);
     });
+
     const rLabels = Object.keys(rHist).map(Number).sort((a,b)=>a-b);
     chartInstances[`r-${idx}`].data.labels = rLabels;
     chartInstances[`r-${idx}`].data.datasets[0].data = rLabels.map(l => rHist[l]);
@@ -368,7 +344,6 @@ function prepSubmit() {
     localStorage.setItem('e_date', document.getElementById('ed').value);
     return true;
 }
-
 function toggleTheme() {
     const t = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', t);
@@ -381,24 +356,7 @@ document.documentElement.setAttribute('data-theme', localStorage.getItem('cf_the
 render();
 
 {% if people_results %}
-    {% for person in people_results %}
-    (function() {
-        const i = {{ loop.index0 }};
-        const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
-        const success = getComputedStyle(document.documentElement).getPropertyValue('--success').trim();
-        chartInstances[`r-${i}`] = new Chart(document.getElementById(`rating-${i}`), {
-            type: 'bar',
-            data: { labels: [], datasets: [{ data: [], backgroundColor: accent, borderRadius: 8 }] },
-            options: { maintainAspectRatio: false, plugins: { title: { display: true, text: 'Difficulty Profile', font: {size:14, weight:'800'} }, legend: {display:false} } }
-        });
-        chartInstances[`t-${i}`] = new Chart(document.getElementById(`tags-${i}`), {
-            type: 'bar',
-            data: { labels: [], datasets: [{ data: [], backgroundColor: success, borderRadius: 8 }] },
-            options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { title: { display: true, text: 'Skill Distribution', font: {size:14, weight:'800'} }, legend: {display:false} } }
-        });
-        updateCharts(i, Object.values(personSolvedSets[i]));
-    })();
-    {% endfor %}
+    {% for person in people_results %} initCharts({{ loop.index0 }}); {% endfor %}
 {% endif %}
 </script>
 </body>
